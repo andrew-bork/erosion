@@ -22,13 +22,13 @@
 	let progbar;
 
 	let scene;
-	let skyTexture, milkywayTexture;
+	// let skyTexture, milkywayTexture;
 	let controls;
 	let heightmeshgroup, wireframemeshgroup;
 	let material = new THREE.MeshStandardMaterial({
-				roughness: 0.7,
+				roughness: 1,
 				color: new THREE.Color( "#9c866a" ),
-				envMap: skyTexture,
+				// envMap: milkywayTexture,
 				flatShading: true,
 			});
 	// let wireframeMaterial = new THREE.MeshBasicMaterial({
@@ -43,6 +43,8 @@
 	let compositor;
 	let skybox;
 	
+	let stats = new Stats();
+
 	let noiseSettings = {
 		xyscale: 0.1,
 		zscale: 1,
@@ -67,7 +69,7 @@
 	};
 
 	const resizeWindow = (w,h) => {
-		console.table([w,h]);
+		// console.table([w,h]);
 		width = canvas.width = w;
 		height = canvas.height = h;
 	}
@@ -75,6 +77,8 @@
     onMount(() => {
 		resizeWindow(screen.width, screen.height);
 		setupScene();
+		setupDebugScene();
+		animate();
 		scene.add(world.chunkGroup);
 		// scene.add(world.wireframeGroup);
 		// world.generateHeightmap();
@@ -119,10 +123,14 @@
 					bruh.name("Erode!");
 					eroder.currtask = null;
 				}
-			}
+			},
+			nwidth: 65,
+			nheight: 65,
 		}
 		base.add(settings, "width", 1, 50, 1).setValue(10);
 		base.add(settings, "height", 1, 50, 1).setValue(10);
+		base.add(world, "nwidth").name("Tile Width Density");
+		base.add(world, "nheight").name("Tile Height Density");
 		const noiseF = base.addFolder("Noise");
 		noiseF.open();
 		noiseF.add(noiseSettings, "xyscale", 0, 10, 0.01);
@@ -185,18 +193,16 @@
 		renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
 		// renderer.
 
-		heightmeshgroup = new THREE.Group();
-		wireframemeshgroup = new THREE.Group();
 		
 		
 		controls = new OrbitControls( camera, renderer.domElement );
 		controls.maxDistance = 100;
 		// controls.enableDamping = true;
-		// controls.dampingFactor= 0.001;
+		// controls.dampingFactor= 0.1;
 		
 		{
-			milkywayTexture = new THREE.TextureLoader().load("../../hdr/milkyway_2020_4k.jpg");
-    		skyTexture = new THREE.TextureLoader().load("../../hdr/dreifaltigkeitsberg_4k.jpg")
+			// milkywayTexture = new THREE.TextureLoader().load("../../hdr/milkyway_2020_4k.jpg");
+    		// skyTexture = new THREE.TextureLoader().load("../../hdr/dreifaltigkeitsberg_4k.jpg")
 		}
 
 
@@ -234,27 +240,43 @@
 		// scene.add(new THREE.Mesh(square, material))
 		// scene.add(debugLines);
 
+		// scene.add(skybox);
+
 		camera.position.z = 5;
 
 		compositor = new EffectComposer(renderer);
 		compositor.addPass(new RenderPass(scene, camera));
 
 
-		let stats = new Stats();
 		stats.showPanel(1);
 		document.body.appendChild(stats.dom);
-		function animate() {
-			stats.begin();
-			controls.update();
-			skybox.position.copy(camera.position);
-			compositor.render();
-			stats.end();
-			// k += 0.01;
-			// world.generateHeightmap();
+	}
+	let debugCanvas;
 
-			requestAnimationFrame( animate );
-		}
-		animate();
+	let debugRenderer;
+	let debugScene;
+	let debugCamera;
+	const animate = () => {
+		stats.begin();
+		controls.update();
+		skybox.position.copy(camera.position);
+		compositor.render();
+		stats.end();
+
+		debugRenderer.render(debugScene, debugCamera);
+
+		requestAnimationFrame( animate );
+	}
+
+	const setupDebugScene = () => {
+		debugScene = new THREE.Scene();
+
+		debugCamera = new THREE.OrthographicCamera();		
+		debugRenderer = new THREE.WebGLRenderer(/* {canvas: debugCanvas} */);
+		debugRenderer.setSize( 100,100 );
+
+		debugScene.add(new THREE.Mesh(new THREE.PlaneBufferGeometry(1,1,1,1), new THREE.MeshBasicMaterial({color: "#FFFFFF"})))
+		debugCamera.position.z = 5;	
 	}
 
 </script>
@@ -264,16 +286,16 @@
 	<!-- <div id="control">
 		<button on:click={erode}>erode</button>
 	</div> -->
+	<canvas id="debug" bind:this={debugCanvas}></canvas>
 	<div bind:this={progbar} id="progbar"></div>
 </main>
 
 
 
 <style>
-	#control {
+	#debug {
 		position: absolute;
-		right: 0;
-		top: 0;
+		/* z-index: 100; */
 	}
 	#progbar {
 		position: absolute;

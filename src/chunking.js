@@ -1,5 +1,5 @@
 
-import { BoxBufferGeometry, BufferAttribute, BufferGeometry, EdgesGeometry, Group, LineBasicMaterial, LineSegments, LOD, Mesh, MeshBasicMaterial, PlaneBufferGeometry, PlaneGeometry, WireframeGeometry } from "three";
+import { BoxBufferGeometry, BufferAttribute, BufferGeometry, DataTexture, EdgesGeometry, Group, LineBasicMaterial, LineSegments, LOD, Mesh, MeshBasicMaterial, PlaneBufferGeometry, PlaneGeometry, WireframeGeometry } from "three";
 import { normalize } from "./vmath";
 
 import Deque from "./queue"
@@ -23,7 +23,8 @@ export class ChunkedWorld {
         this.material = material;
 
         this.chunkGroup = new Group();
-        this.wireframeGroup = new Group();
+        // this.wireframeGroup = new Group();
+        this.debugTextureMesh = new Group();
 
         this.wireframeMaterial = wireframeMaterial;
 
@@ -31,22 +32,32 @@ export class ChunkedWorld {
         this.chunks;
         this.createChunks();
 
-        this.dx = 1 / 64;
-        this.dy = 1 / 64;
+        this.setPointsPerTile(65,65);
+    }
+
+    setPointsPerTile(nwidth, nheight) {
+        this.nwidth = nwidth;
+        this.nheight = nheight;
+        this.dx = 1 / this.nwidth;
+        this.dy = 1 / this.nheight;
     }
 
     createChunks() {
+        this.dx = 1 / (this.nwidth - 1);
+        this.dy = 1 / (this.nheight - 1);
         this.chunkGroup.clear();
+        this.debugTextureMesh.clear();
         this.chunks = [];
         for(let y = 0; y < this.height; y++) {
             const row = [];
             for(let x = 0; x < this.width; x++){
-                const chunk = new Chunk(65, 65, x, y, this.noise, this.material, this.wireframeMaterial);
+                const chunk = new Chunk(this.nwidth, this.nheight, x, y, this.noise, this.material, this.wireframeMaterial);
                 row.push(chunk);
                 chunk.lod.position.set(x - this.width / 2,0,y - this.height / 2);
                 // chunk.meshWireframe.position.set(x - this.width / 2,0,y - this.height / 2);
                 // this.chunkGroup.add(chunk.mesh);
                 this.chunkGroup.add(chunk.lod);
+                this.debugTextureMesh.add(chunk.debugTextureMesh);
                 // this.wireframeGroup.add(chunk.meshWireframe);
             }
             this.chunks.push(row);
@@ -196,17 +207,26 @@ class Chunk {
         this.noise = noise;
 
         /** @type {Float32Array} vertex position buffer */
-        this.position = new Float32Array(3 * this.width * this.height);
+        this.position = new Float32Array(4 * this.width * this.height);
         /** @type {Float32Array} vertex normal buffer */
-        this.normal = new Float32Array(3 * this.width * this.height);
+        this.normal = new Float32Array(4 * this.width * this.height);
 
-        this.posAttr = new BufferAttribute(this.position, 3);
+        this.posAttr = new BufferAttribute(this.position, 4);
 
         
         this.material = material;
 
         this.lod = new LOD();
         this.createLODPLanes();
+        this.setupDebugTexture();
+    }
+
+    setupDebugTexture() {
+        this.heightmapTexture = new DataTexture(this.position, this.width, this.height);
+        this.debugTextureGeometry = new PlaneBufferGeometry(1,1,1,1);
+        this.debugTextureMesh = new Mesh(this.debugTextureGeometry, new MeshBasicMaterial({
+            color: this.heightmapTexture
+        }))
     }
 
     /**
@@ -216,7 +236,7 @@ class Chunk {
      * @param {number} y 
      */
     i(x,y) {
-        return 3 * (x + y * this.width);
+        return 4 * (x + y * this.width);
     }
 
     /**
@@ -233,6 +253,7 @@ class Chunk {
                 this.position[posI] = x / (this.width - 1);
                 this.position[posI+1] = height;
                 this.position[posI+2] = y / (this.height - 1);
+                this.position[posI+3] = 1;
             }
         }
         // this.geometry.getAttribute("position").needsUpdate = true;
@@ -247,19 +268,19 @@ class Chunk {
     generateMesh(skip) {
         let geo = new BufferGeometry();
         let k = skip;
-        let geoInd = new Uint16Array(2 * 3 * (this.width - 1) * (this.height - 1) / (k * k));
+        let geoInd = new Uint16Array(2 * 4 * (this.width - 1) * (this.height - 1) / (k * k));
         
         let i = 0;
         for(let y = 0; y < this.height - 1; y += k) {
             for(let x = 0; x < this.width - 1; x += k) {
                 // console.table([[x,y]])
-                geoInd[i++] = this.i(x+k,y) / 3;
-                geoInd[i++] = this.i(x,y) / 3;
-                geoInd[i++] = this.i(x,y+k) / 3;
+                geoInd[i++] = this.i(x+k,y) / 4;
+                geoInd[i++] = this.i(x,y) / 4;
+                geoInd[i++] = this.i(x,y+k) / 4;
                 
-                geoInd[i++] = this.i(x,y+k) / 3;
-                geoInd[i++] = this.i(x+k,y+k) / 3;
-                geoInd[i++] = this.i(x+k,y) / 3;
+                geoInd[i++] = this.i(x,y+k) / 4;
+                geoInd[i++] = this.i(x+k,y+k) / 4;
+                geoInd[i++] = this.i(x+k,y) / 4;
             }
         }
         
